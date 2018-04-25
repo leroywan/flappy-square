@@ -1,0 +1,11 @@
+.game {
+  text-align: center;
+}
+
+.game__header {
+  font-size: 12px;
+}
+
+#square-game {
+  border: 1px solid black;
+}
