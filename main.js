@@ -1,5 +1,5 @@
 const CANVAS_HEIGHT = 500;
-const CANVAS_WIDTH = 500;
+const CANVAS_WIDTH = 600;
 const canvas = document.createElement('canvas');
 document.getElementById("game-root").appendChild(canvas);
 canvas.setAttribute("id", "square-game");
@@ -66,7 +66,7 @@ function getRandomInt(min, max) {
     max = Math.floor(max);
     return Math.floor(Math.random() * (max - min + 1)) + min; //The maximum is inclusive and the minimum is inclusive 
 }
-const BOUNDRY = {
+const BOUNDARY = {
     LEFT: 0,
     TOP: 0,
     RIGHT: CANVAS_WIDTH,
@@ -78,29 +78,41 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
     }
     clearFrame() {
-        this.ctx.clearRect(0, 0, CANVAS_HEIGHT, CANVAS_WIDTH);
+        this.ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
     }
-    isOutOfBounds(itemPosX, itemPosY, itemWidth = 0, itemHeight = 0) {
-        if (itemPosX < BOUNDRY.LEFT)
-            return true;
-        if (itemPosY < BOUNDRY.TOP)
-            return true;
-        if (itemPosX > BOUNDRY.RIGHT - itemWidth)
-            return true;
-        if (itemPosY > BOUNDRY.BOTTOM - itemHeight)
-            return true;
-        return false;
+    printGameOver(player, animationId) {
+        this.clearFrame();
+        window.cancelAnimationFrame(animationId);
+        this.ctx.fillStyle = "black";
+        this.ctx.font = "60px Verdana";
+        this.ctx.textAlign = "center";
+        this.ctx.fillText("You ded X_X", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+        this.ctx.font = "26px Verdana";
+        this.ctx.fillText(`Your Score: ${player.score} `, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+    }
+    drawNewFrame(player, obstacle, powerUp) {
+        playerControls.movePlayer();
+        player.paint();
+        obstacles.forEach((obstacle) => {
+            obstacle.moveObstacle();
+            obstacle.paint();
+            handleCollision(player, obstacle);
+        });
+        powerUp.move();
+        powerUp.paint();
+        handleCollision(player, powerUp);
+        player.printPlayerStatus();
     }
 }
 class GameItem extends Game {
-    constructor(width = 10, height = 10, x = 450, y = 450, color = 'black', boundry) {
+    constructor(width = 10, height = 10, x = 450, y = 450, color = 'black', boundary) {
         super();
         this.width = width;
         this.height = height;
         this.x = x;
         this.y = y;
         this.color = color;
-        this.boundry = {
+        this.boundary = {
             left: 0,
             top: 0,
             right: CANVAS_WIDTH - width,
@@ -119,21 +131,21 @@ class GameItem extends Game {
 class Obstacle extends GameItem {
     constructor(obstacleOffset) {
         super(getRandomInt(30, 80), 10);
-        this.x = getRandomInt(0, this.boundry.right);
+        this.x = getRandomInt(0, this.boundary.right);
         this.y = 0 - this.height - obstacleOffset;
         this.fallSpeed = 3;
     }
     _moveDown() {
         this.setPos(this.x, this.y + this.fallSpeed);
     }
-    _resetObstacle() {
+    resetObstacle(offset) {
         this.y = 0 - this.height;
-        this.x = getRandomInt(0, this.boundry.right);
+        this.x = getRandomInt(0, this.boundary.right);
     }
     moveObstacle() {
         this._moveDown();
         if (this.y > CANVAS_HEIGHT) {
-            this._resetObstacle();
+            this.resetObstacle();
         }
     }
 }
@@ -141,8 +153,40 @@ class Player extends GameItem {
     constructor() {
         super();
         this.life = 10;
-        this.active = true;
+        this.collisionDetected = true;
         this.score = 0;
+    }
+    _printScore() {
+        this.ctx.fillStyle = "black";
+        this.ctx.font = "20px Verdana";
+        this.ctx.fillText(`Lives: ${this.life}`, 10, 30);
+    }
+    _printLives() {
+        this.ctx.fillStyle = "black";
+        this.ctx.font = "20px Verdana";
+        this.ctx.fillText(`Score: ${this.score}`, 10, CANVAS_HEIGHT - 10);
+    }
+    gainLife() {
+        this.life++;
+        this.color = 'lightgreen';
+    }
+    loseLife() {
+        this.color = 'red';
+        this.life--;
+    }
+    setCollisionState() {
+        this.collisionDetected = false;
+        setTimeout(() => {
+            this.collisionDetected = true;
+            this.color = 'black';
+        }, 500);
+    }
+    printPlayerStatus() {
+        this._printScore();
+        this._printLives();
+    }
+    incrementScore() {
+        this.score++;
     }
 }
 class PlayerControls extends Game {
@@ -165,25 +209,25 @@ class PlayerControls extends Game {
     _moveDown() {
         this.player.y = this.player.y + this.speedY;
     }
-    _resetToClosestBoundry() {
+    _resetToClosestBOUNDARY() {
         let posX = this.player.x;
         let posY = this.player.y;
-        if (this.player.x < BOUNDRY.LEFT) {
-            posX = BOUNDRY.LEFT;
+        if (this.player.x < BOUNDARY.LEFT) {
+            posX = BOUNDARY.LEFT;
         }
-        else if (this.player.y < BOUNDRY.TOP) {
-            posY = BOUNDRY.TOP;
+        else if (this.player.y < BOUNDARY.TOP) {
+            posY = BOUNDARY.TOP;
         }
-        else if (this.player.x > BOUNDRY.RIGHT - this.player.width) {
-            posX = BOUNDRY.RIGHT - this.player.width;
+        else if (this.player.x > BOUNDARY.RIGHT - this.player.width) {
+            posX = BOUNDARY.RIGHT - this.player.width;
         }
-        else if (this.player.y > BOUNDRY.BOTTOM - this.player.height) {
-            posY = BOUNDRY.BOTTOM - this.player.height;
+        else if (this.player.y > BOUNDARY.BOTTOM - this.player.height) {
+            posY = BOUNDARY.BOTTOM - this.player.height;
         }
         this.player.setPos(posX, posY);
     }
     movePlayer() {
-        this._resetToClosestBoundry();
+        this._resetToClosestBOUNDARY();
         if (keyState.left) {
             this._moveLeft();
         }
@@ -202,19 +246,57 @@ class PlayerControls extends Game {
         ;
     }
 }
-function handleCollision(player, obstacle) {
-    if (player.y < obstacle.y + 10 &&
-        player.y > obstacle.y - 10 &&
-        player.x > obstacle.x &&
-        player.x < (obstacle.x + obstacle.width)) {
-        if (player.active) {
-            player.life--;
-            player.color = 'red';
-            player.active = false;
-            setTimeout(() => {
-                player.active = true;
-                player.color = 'black';
-            }, 500);
+class PowerUp extends GameItem {
+    constructor() {
+        super();
+        this.moveSpeed = 1;
+        this.width = 30;
+        this.height = 30;
+        this.x = getRandomInt(0, CANVAS_WIDTH - this.width);
+        this.y = -500;
+        this.color = 'orange';
+        this.movingRight = (Math.random() >= 0.5); // random boolean
+    }
+    _switchDirections() {
+        this.movingRight = !this.movingRight;
+    }
+    _outOfBounds() {
+        return this.x < 0 || this.x > CANVAS_WIDTH - this.width;
+    }
+    resetToTop() {
+        this.x = getRandomInt(0, CANVAS_WIDTH - this.width);
+        this.y = -500;
+    }
+    move() {
+        if (this._outOfBounds()) {
+            this._switchDirections();
+        }
+        if (this.y > CANVAS_HEIGHT) {
+            this.resetToTop();
+        }
+        if (this.movingRight) {
+            this.x++;
+        }
+        else {
+            this.x--;
+        }
+        this.y++;
+    }
+}
+function handleCollision(player, gameObject) {
+    if (player.y + player.height > gameObject.y &&
+        player.y < (gameObject.y + gameObject.height) &&
+        player.x + player.width > gameObject.x &&
+        player.x < (gameObject.x + gameObject.width) &&
+        player.collisionDetected) {
+        player.setCollisionState();
+        if (gameObject instanceof Obstacle) {
+            player.loseLife();
+            gameObject.resetObstacle(CANVAS_HEIGHT - this.height);
+        }
+        if (gameObject instanceof PowerUp) {
+            player.gainLife();
+            gameObject.resetToTop();
         }
     }
 }
@@ -222,8 +304,9 @@ const game = new Game();
 const player = new Player();
 const playerControls = new PlayerControls(player, keyState);
 const obstacles = [];
+const powerUp = new PowerUp();
 let obstacleOffset = 0;
-for (let i = 0; i < 30; i++) {
+for (let i = 0; i < 5; i++) {
     obstacles.push(new Obstacle(obstacleOffset));
     if (i % 2) {
         obstacleOffset += 50;
@@ -232,26 +315,11 @@ for (let i = 0; i < 30; i++) {
 let animationId;
 function draw() {
     game.clearFrame();
-    game.ctx.font = "20px Verdana";
-    game.ctx.fillText(`Lives: ${player.life}`, 10, 30);
-    game.ctx.fillText(`Score: ${player.score}`, 10, CANVAS_HEIGHT - 10);
-    playerControls.movePlayer();
-    player.paint();
-    obstacles.forEach((obstacle) => {
-        obstacle.moveObstacle();
-        obstacle.paint();
-        handleCollision(player, obstacle);
-    });
+    game.drawNewFrame(player, obstacles, powerUp);
+    player.incrementScore();
     animationId = window.requestAnimationFrame(draw);
-    player.score++;
     if (player.life == 0) {
-        game.clearFrame();
-        window.cancelAnimationFrame(animationId);
-        game.ctx.font = "60px Verdana";
-        game.ctx.textAlign = "center";
-        game.ctx.fillText("You ded X_X", CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
-        game.ctx.font = "26px Verdana";
-        game.ctx.fillText(`Your Score: ${player.score} `, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 60);
+        game.printGameOver(player, animationId);
     }
 }
 draw();
