@@ -58,18 +58,41 @@ window.addEventListener('keydown', (e)=>{
   }
 })
 
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1)) + min; //The maximum is inclusive and the minimum is inclusive 
+}
+
 
 interface Game {
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D
 }
 
-interface Player {
+interface Boundry {
+  left: number,
+  top: number,
+  right: number,
+  bottom: number
+}
+interface GameItem {
+  x: number,
+  y: number,
   width: number,
   height: number,
   color: string,
-  x: number,
-  y: number,
+  boundry: Boundry,
+}
+
+interface Obstacle {
+  fallSpeed: number,
+}
+
+interface Player {
+  life: number,
+  active: boolean,
+  score: number,
 }
 
 const enum KEYS {
@@ -89,6 +112,8 @@ interface KeyState {
 interface PlayerControls {
   player: Player,
   keyState: KeyState,
+  speedX: number,
+  speedY: number,
 }
 
 const BOUNDRY = {
@@ -108,7 +133,7 @@ class Game implements Game {
     this.ctx.clearRect(0, 0, CANVAS_HEIGHT, CANVAS_WIDTH);
   }
 
-  protected isOutOfBounds(itemPosX: number, itemPosY: number, itemWidth: number = 0, itemHeight: number = 0) {
+  protected isOutOfBounds(itemPosX: number, itemPosY: number, itemWidth: number = 0, itemHeight: number = 0): boolean {
     if (itemPosX < BOUNDRY.LEFT) return true;
     if (itemPosY < BOUNDRY.TOP) return true;
     if (itemPosX > BOUNDRY.RIGHT - itemWidth) return true;
@@ -118,29 +143,71 @@ class Game implements Game {
   }
 }
 
-class Player extends Game implements Player{
+class GameItem extends Game implements GameItem {
   constructor(
-      width: number = 10,
-      height: number = 10,
-      color: string = 'black',
-      x: number = 450, 
-      y: number = 450,
-    ) {
-    super()
+    width: number = 10,
+    height: number = 10,
+    x: number = 450, 
+    y: number = 450,
+    color: string = 'black',
+    boundry?,
+  ) {
+    super();
     this.width = width;
     this.height = height;
+    this.x = x;
+    this.y = y;
     this.color = color;
+    this.boundry = {
+      left: 0,
+      top: 0,
+      right: CANVAS_WIDTH - width,
+      bottom: CANVAS_HEIGHT - height,
+    }
+  }
+
+  setPos(x: number, y: number): void{ 
     this.x = x;
     this.y = y;
   }
 
-  setPos(x: number, y: number){ 
-    this.x = x;
-    this.y = y;
-  }
-
-  paint() {
+  paint(): void {
+    this.ctx.fillStyle = this.color;
     this.ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+}
+
+class Obstacle extends GameItem implements Obstacle {
+  constructor(obstacleOffset) {
+    super(getRandomInt(30, 80), 10);
+    this.x = getRandomInt(0, this.boundry.right);
+    this.y = 0 - this.height - obstacleOffset;
+    this.fallSpeed = 3;
+  }
+
+  private _moveDown() {
+    this.setPos(this.x, this.y + this.fallSpeed);
+  }
+
+  private _resetObstacle() {
+    this.y = 0 - this.height;
+    this.x = getRandomInt(0, this.boundry.right);
+  }
+
+  public moveObstacle() {
+    this._moveDown();
+    if (this.y > CANVAS_HEIGHT) {
+      this._resetObstacle();
+    }
+  }
+}
+
+class Player extends GameItem implements Player{
+  constructor() {
+    super();
+    this.life = 10;
+    this.active = true;
+    this.score = 0;
   }
 }
 
@@ -149,29 +216,27 @@ class PlayerControls extends Game implements PlayerControls {
     super();
     this.player = player;
     this.keyState = keyState;
+    this.speedX = 0.2 * this.player.width;
+    this.speedY = 0.15 * this.player.height;
   }
 
-  private _moveLeft() {
-    if (!keyState.left) return;
-    this.player.x--;
+  private _moveLeft(): void {
+    this.player.x = this.player.x - this.speedX;
   }
 
-  private _moveUp() {
-    if (!keyState.up) return;
-    this.player.y--;
+  private _moveUp(): void {
+    this.player.y = this.player.y - this.speedY;
   }
 
-  private _moveRight() {
-    if (!keyState.right) return;
-    this.player.x++;
+  private _moveRight(): void {
+    this.player.x = this.player.x + this.speedX;
   }
 
-  private _moveDown() {
-    if (!keyState.down) return;
-    this.player.y++;
+  private _moveDown(): void {
+    this.player.y = this.player.y + this.speedY;
   }
 
-  private _resetToClosestBoundry() {
+  private _resetToClosestBoundry(): void {
     let posX = this.player.x;
     let posY = this.player.y;
     if (this.player.x < BOUNDRY.LEFT) {
@@ -184,26 +249,71 @@ class PlayerControls extends Game implements PlayerControls {
       posY = BOUNDRY.BOTTOM - this.player.height;
     }
     this.player.setPos(posX, posY);
-    return;
   }
 
   movePlayer() {
     this._resetToClosestBoundry();
-    this._moveLeft();
-    this._moveUp();
-    this._moveRight();
-    this._moveDown();
+    if (keyState.left) { this._moveLeft() };
+    if (keyState.up) {this._moveUp() };
+    if (keyState.right) { this._moveRight() };
+    if (keyState.down) { this._moveDown() };
+  }
+}
+
+function handleCollision(player: Player, obstacle: (Obstacle)): void {
+  if (player.y < obstacle.y + 10 &&
+    player.y > obstacle.y - 10 &&
+    player.x > obstacle.x &&
+    player.x < (obstacle.x + obstacle.width)
+  ){
+    if (player.active) {
+      player.life--;
+      player.color = 'red';
+      player.active = false;
+      setTimeout(()=>{
+        player.active = true;
+        player.color = 'black';
+      }, 500)
+    }
   }
 }
 
 const game = new Game();
 const player = new Player();
 const playerControls = new PlayerControls(player, keyState);
+const obstacles: Obstacle[] = [];
+let obstacleOffset = 0;
+for (let i=0; i<30; i++) {
+  obstacles.push(new Obstacle(obstacleOffset));
+  if (i % 2) {
+    obstacleOffset += 50;
+  }
+}
+
+let animationId;
 function draw(): void {
   game.clearFrame();
+  game.ctx.font = "20px Verdana";
+  game.ctx.fillText(`Lives: ${player.life}`, 10, 30);
+  game.ctx.fillText(`Score: ${player.score}`, 10, CANVAS_HEIGHT - 10)
   playerControls.movePlayer();
   player.paint();
-  window.requestAnimationFrame(draw);
+  obstacles.forEach((obstacle)=>{
+    obstacle.moveObstacle();
+    obstacle.paint();
+    handleCollision(player, obstacle);
+  });
+  animationId = window.requestAnimationFrame(draw);
+  player.score++;
+  if (player.life == 0) {
+    game.clearFrame();
+    window.cancelAnimationFrame(animationId);
+    game.ctx.font = "60px Verdana";
+    game.ctx.textAlign = "center";
+    game.ctx.fillText("You ded X_X", CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+    game.ctx.font = "26px Verdana";
+    game.ctx.fillText(`Your Score: ${player.score} `, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 60)
+  }
 }
 draw();
 
