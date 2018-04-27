@@ -12,111 +12,88 @@ const keyState = {
   up: false,
   right: false,
   down: false,
+};
+
+function handleKeyEvents(event: KeyboardEvent): void {
+  let keyDownPressed = (event.type === 'keydown');
+  let keyPressed: number = event.which;
+
+  switch(keyPressed) {
+    case KEYS.LEFT:
+      keyState.left = keyDownPressed;
+      break;
+    case KEYS.UP:
+      keyState.up = keyDownPressed;
+      break;
+    case KEYS.RIGHT:
+      keyState.right = keyDownPressed;
+      break;
+    case KEYS.DOWN:
+      keyState.down = keyDownPressed;
+      break;
+  }
 }
 
-window.addEventListener('keyup', (e)=>{
-  let keyPressed = e.which;
-  switch(keyPressed) {
-    case KEYS.LEFT:
-      if (!keyState.left) break;
-      keyState.left = false;
-      break;
-    case KEYS.UP:
-    if (!keyState.up) break;
-      keyState.up = false;
-      break;
-    case KEYS.RIGHT:
-    if (!keyState.right) break;
-      keyState.right = false;
-      break;
-    case KEYS.DOWN:
-    if (!keyState.down) break;
-      keyState.down = false;
-      break;
-  }
-});
+window.addEventListener('keyup', handleKeyEvents);
+window.addEventListener('keydown', handleKeyEvents);
 
-window.addEventListener('keydown', (e)=>{
-  let keyPressed = e.which;
-  switch(keyPressed) {
-    case KEYS.LEFT:
-      if (keyState.left) break;
-      keyState.left = true;
-      break;
-    case KEYS.UP:
-      if (keyState.up) break;
-      keyState.up = true;
-      break;
-    case KEYS.RIGHT:
-      if (keyState.right) break;
-      keyState.right = true;
-      break;
-    case KEYS.DOWN:
-      if (keyState.down) break;
-      keyState.down = true;
-      break;
-  }
-})
-
-function getRandomInt(min, max) {
+function getRandomInt(min: number, max: number): number {
   min = Math.ceil(min);
   max = Math.floor(max);
   return Math.floor(Math.random() * (max - min + 1)) + min; //The maximum is inclusive and the minimum is inclusive 
 }
 
-
-interface Game {
-  canvas: HTMLCanvasElement,
-  ctx: CanvasRenderingContext2D
+interface GameInterface {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
 }
 
-interface Boundary {
-  left: number,
-  top: number,
-  right: number,
-  bottom: number
-}
-interface GameItem {
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  color: string,
-  boundary: Boundary,
+interface BoundaryInterface {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
 }
 
-interface Obstacle {
-  fallSpeed: number,
+interface GameItemInterface {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  speed: number;
+  boundary?: BoundaryInterface;
 }
 
-interface PowerUp {
+interface ObstacleInterface {
+  
+}
+
+interface TrapInterface {
+  
+}
+
+interface PowerUpInterface {
   moveSpeed: number,
   movingRight: boolean,
 }
 
-interface Player {
+interface PlayerInterface {
   life: number,
   collisionDetected: boolean,
   score: number,
 }
 
-const enum KEYS {
-  LEFT = 37,
-  UP = 38,
-  RIGHT = 39,
-  DOWN = 40,
-}
-
-interface KeyState {
+interface KeyStateInterface {
   left: boolean,
   up: boolean,
   right: boolean,
   down: boolean,
 }
 
-interface PlayerControls {
+interface PlayerControlsInterface {
   player: Player,
-  keyState: KeyState,
+  keyState: KeyStateInterface,
   speedX: number,
   speedY: number,
 }
@@ -128,7 +105,17 @@ const BOUNDARY = {
   BOTTOM: CANVAS_HEIGHT,
 }
 
-class Game implements Game {
+enum KEYS {
+  LEFT = 37,
+  UP = 38,
+  RIGHT = 39,
+  DOWN = 40,
+}
+
+
+class Game implements GameInterface {
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
   constructor() {
     this.canvas = <HTMLCanvasElement>document.getElementById('square-game');
     this.ctx = this.canvas.getContext('2d');
@@ -137,41 +124,17 @@ class Game implements Game {
   clearFrame(): void {
     this.ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
   }
-
-  public printGameOver(player: Player, animationId): void {
-    this.clearFrame();
-    window.cancelAnimationFrame(animationId);
-    this.ctx.fillStyle = "black";
-    this.ctx.font = "60px Verdana";
-    this.ctx.textAlign = "center";
-    this.ctx.fillText("You ded X_X", CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
-    this.ctx.font = "26px Verdana";
-    this.ctx.fillText(`Your Score: ${player.score} `, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 60)
-  }
-
-  drawNewFrame(player: Player, obstacle: Obstacle[], powerUp: PowerUp): void {
-    playerControls.movePlayer();
-    player.paint();
-    obstacles.forEach((obstacle)=>{
-      obstacle.moveObstacle();
-      obstacle.paint();
-      handleCollision(player, obstacle);
-    });
-    powerUp.move();
-    powerUp.paint();
-    handleCollision(player, powerUp);
-    player.printPlayerStatus();
-  }
 }
 
-class GameItem extends Game implements GameItem {
+abstract class GameItem extends Game implements GameItemInterface {
   constructor(
-    width: number = 10,
-    height: number = 10,
-    x: number = 450, 
-    y: number = 450,
-    color: string = 'black',
-    boundary?,
+    public width: number = 10,
+    public height: number = 10,
+    public x: number = 450, 
+    public y: number = 450,
+    public color: string = 'black',
+    public speed: number = 2,
+    public boundary?,
   ) {
     super();
     this.width = width;
@@ -198,16 +161,21 @@ class GameItem extends Game implements GameItem {
   }
 }
 
-class Obstacle extends GameItem implements Obstacle {
+class Obstacle extends GameItem implements ObstacleInterface {
   constructor(obstacleOffset) {
     super(getRandomInt(30, 80), 10);
     this.x = getRandomInt(0, this.boundary.right);
     this.y = 0 - this.height - obstacleOffset;
-    this.fallSpeed = 3;
+  }
+
+  paint() {
+    super.paint();
+    this.ctx.strokeStyle = 'white';
+    this.ctx.strokeRect(this.x, this.y, this.width, this.height);
   }
 
   private _moveDown() {
-    this.setPos(this.x, this.y + this.fallSpeed);
+    this.setPos(this.x, this.y + this.speed);
   }
 
   public resetObstacle(offset?) {
@@ -223,10 +191,13 @@ class Obstacle extends GameItem implements Obstacle {
   }
 }
 
-class Player extends GameItem implements Player{
+class Player extends GameItem implements PlayerInterface {
+  life: number;
+  collisionDetected: boolean;
+  score: number;
   constructor() {
     super();
-    this.life = 10;
+    this.life = 5;
     this.collisionDetected = true;
     this.score = 0;
   }
@@ -253,6 +224,11 @@ class Player extends GameItem implements Player{
     this.life--;
   }
 
+  public setSize(width: number, height: number) {
+    this.width = width;
+    this.height = height;
+  }
+
   public setCollisionState(): void {
     this.collisionDetected = false;
     setTimeout(()=>{
@@ -271,32 +247,35 @@ class Player extends GameItem implements Player{
   }
 }
 
-class PlayerControls extends Game implements PlayerControls {
+class PlayerControls implements PlayerControlsInterface {
+  player: Player;
+  keyState: KeyStateInterface;
+  speedX: number;
+  speedY: number;
   constructor(player, keyState) {
-    super();
     this.player = player;
     this.keyState = keyState;
-    this.speedX = 0.2 * this.player.width;
-    this.speedY = 0.15 * this.player.height;
+    this.speedX = 2;
+    this.speedY = 1.5;
   }
 
-  private _moveLeft(): void {
+  private moveLeft(): void {
     this.player.x = this.player.x - this.speedX;
   }
 
-  private _moveUp(): void {
+  private moveUp(): void {
     this.player.y = this.player.y - this.speedY;
   }
 
-  private _moveRight(): void {
+  private moveRight(): void {
     this.player.x = this.player.x + this.speedX;
   }
 
-  private _moveDown(): void {
+  private moveDown(): void {
     this.player.y = this.player.y + this.speedY;
   }
 
-  private _resetToClosestBOUNDARY(): void {
+  private resetToClosestBoundary(): void {
     let posX = this.player.x;
     let posY = this.player.y;
     if (this.player.x < BOUNDARY.LEFT) {
@@ -312,20 +291,41 @@ class PlayerControls extends Game implements PlayerControls {
   }
 
   movePlayer() {
-    this._resetToClosestBOUNDARY();
-    if (keyState.left) { this._moveLeft() };
-    if (keyState.up) {this._moveUp() };
-    if (keyState.right) { this._moveRight() };
-    if (keyState.down) { this._moveDown() };
+    this.resetToClosestBoundary();
+    if (keyState.left) { this.moveLeft() };
+    if (keyState.up) {this.moveUp() };
+    if (keyState.right) { this.moveRight() };
+    if (keyState.down) { this.moveDown() };
   }
 }
 
-class PowerUp extends GameItem implements PowerUp {
+class Trap extends GameItem implements TrapInterface {
+  constructor() {
+    super();
+    this.color = 'red';
+    this.width = 60;
+    this.height = 30;
+    this.y = 0 - this.height;
+  }
+
+  public move() {
+    this.setPos(this.x, this.y + this.speed);
+  }
+
+  public resetToTop() {
+    this.x = getRandomInt(0, CANVAS_WIDTH - this.width);
+    this.y = -1000;
+  }
+}
+
+class PowerUp extends GameItem implements PowerUpInterface {
+  moveSpeed: number;
+  movingRight: boolean;
   constructor() {
     super();
     this.moveSpeed = 1;
-    this.width = 30;
-    this.height = 30;
+    this.width = 25;
+    this.height = 25;
     this.x = getRandomInt(0, CANVAS_WIDTH - this.width);
     this.y = -500;
     this.color = 'orange';
@@ -364,13 +364,14 @@ class PowerUp extends GameItem implements PowerUp {
   }
 }
 
-function handleCollision(player: Player, gameObject: (Obstacle|PowerUp)): void {
+function handleCollision(player: Player, gameObject: (Obstacle|PowerUp|Trap)): void {
   if (player.y + player.height > gameObject.y &&
     player.y < (gameObject.y + gameObject.height) &&
     player.x + player.width > gameObject.x &&
     player.x < (gameObject.x + gameObject.width) &&
     player.collisionDetected
   ){
+
     player.setCollisionState();
     if (gameObject instanceof Obstacle) {
       player.loseLife();
@@ -381,31 +382,72 @@ function handleCollision(player: Player, gameObject: (Obstacle|PowerUp)): void {
       player.gainLife();
       gameObject.resetToTop();
     }
+
+    if (gameObject instanceof Trap) {
+      player.setPos(player.x - player.width/2, player.y - player.height/2);
+      player.setSize(player.width * 2, player.width * 2);
+      gameObject.resetToTop();
+    }
   }
 }
 
+function handleGamePlay(player: Player, playerControls: PlayerControls, obstacles: Obstacle[], powerUp: PowerUp, trap: Trap): void {
+  playerControls.movePlayer();
+  player.paint();
+  trap.move();
+  trap.paint();
+  obstacles.forEach((obstacle)=>{
+    obstacle.moveObstacle();
+    obstacle.paint();
+    handleCollision(player, obstacle);
+  });
+  powerUp.move();
+  powerUp.paint();
+  handleCollision(player, powerUp);
+  handleCollision(player, trap);
+  player.incrementScore();
+  player.printPlayerStatus();
+}
+
+function printGameOver(game: Game, animationId: number): void {
+  game.clearFrame();
+  window.cancelAnimationFrame(animationId);
+  game.ctx.fillStyle = "black";
+  game.ctx.font = "60px Verdana";
+  game.ctx.textAlign = "center";
+  game.ctx.fillText("You ded X_X", CANVAS_WIDTH/2, CANVAS_HEIGHT/2);
+  game.ctx.font = "26px Verdana";
+  game.ctx.fillText(`Your Score: ${player.score} `, CANVAS_WIDTH/2, CANVAS_HEIGHT/2 + 60)
+}
+
+
+// Instantiate objects
 const game = new Game();
 const player = new Player();
 const playerControls = new PlayerControls(player, keyState);
 const obstacles: Obstacle[] = [];
 const powerUp = new PowerUp();
+const trap = new Trap();
 
 let obstacleOffset = 0;
-for (let i=0; i<5; i++) {
+for (let i=0; i<30; i++) {
   obstacles.push(new Obstacle(obstacleOffset));
+
+  // create 2 obstacles at once
   if (i % 2) {
-    obstacleOffset += 50;
+    obstacleOffset += 100;
   }
 }
 
-let animationId;
+// Run the animation
+let animationId: number;
 function draw(): void {
   game.clearFrame();
-  game.drawNewFrame(player, obstacles, powerUp);
-  player.incrementScore();
+  handleGamePlay(player, playerControls, obstacles, powerUp, trap);
+  
   animationId = window.requestAnimationFrame(draw);
   if (player.life == 0) {
-    game.printGameOver(player, animationId);
+    printGameOver(game, animationId);
   }
 }
 draw();
